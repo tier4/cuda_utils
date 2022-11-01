@@ -51,6 +51,26 @@ CudaUniquePtr<T> make_unique()
   CHECK_CUDA_ERROR(::cudaMalloc(reinterpret_cast<void **>(&p), sizeof(T)));
   return CudaUniquePtr<T>{p};
 }
+
+struct CudaDeleterHost {
+  void operator()(void *p) const { CHECK_CUDA_ERROR(::cudaFreeHost(p)); }
+};
+template <typename T> using CudaUniquePtrHost = std::unique_ptr<T, CudaDeleterHost>;
+
+template <typename T>
+typename std::enable_if_t<std::is_array<T>::value, CudaUniquePtrHost<T>>
+make_unique_host(const std::size_t n, unsigned int flag) {
+  using U = typename std::remove_extent_t<T>;
+  U *p;
+  CHECK_CUDA_ERROR(::cudaHostAlloc(reinterpret_cast<void **>(&p), sizeof(U) * n, flag));
+  return CudaUniquePtrHost<T>{p};
+}
+
+template <typename T> CudaUniquePtrHost<T> make_unique_host(unsigned int flag=cudaHostAllocDefault) {
+  T *p;
+  CHECK_CUDA_ERROR(::cudaHostAlloc(reinterpret_cast<void **>(&p), sizeof(T), flag));
+  return CudaUniquePtrHost<T>{p};
+}
 }  // namespace cuda_utils
 
 #endif  // CUDA_UTILS__CUDA_UNIQUE_PTR_HPP_
